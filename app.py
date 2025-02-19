@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify
 from youtube_transcript_api import YouTubeTranscriptApi
 import googleapiclient.discovery
 import os
-import requests
 from dotenv import load_dotenv
 import google.generativeai as genai
 
@@ -51,7 +50,7 @@ def get_video_transcription(video_id):
         return "Transcription not available."
 
 def generate_summary(transcription):
-    """ Generate a summary using Gemini API (via genai) """
+    """ Generate a summary using Gemini API """
     if transcription == "Transcription not available.":
         return "Summary not available because the transcription could not be retrieved."
 
@@ -66,20 +65,40 @@ def generate_summary(transcription):
     """
 
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash")  # Choose the appropriate Gemini model
+        model = genai.GenerativeModel("gemini-1.5-flash")
         response = model.generate_content(prompt)
-
-        if response and hasattr(response, 'text'):
-            return response.text if response.text else "Summary generation failed."
-        else:
-            return "Error generating summary."
-
+        return response.text if response and hasattr(response, 'text') else "Summary generation failed."
     except Exception as e:
         return f"Error generating summary: {e}"
 
+def generate_chapters(transcription):
+    """ Generate structured chapters with timestamps from the transcription """
+    if transcription == "Transcription not available.":
+        return "Chapters not available because the transcription could not be retrieved."
+
+    prompt = f"""
+    Analyze the following YouTube video transcription and divide it into 4-5 logical chapters.
+    Each chapter should have a title and the corresponding timestamps (start and end).
+
+    Format your response as a JSON array where each item is structured as:
+    {{ "start": "hh:mm:ss", "end": "hh:mm:ss", "title": "Chapter Title" }}
+
+    Transcription:
+    {transcription}
+
+    Chapters:
+    """
+
+    try:
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response = model.generate_content(prompt)
+        return response.text if response and hasattr(response, 'text') else "Chapters generation failed."
+    except Exception as e:
+        return f"Error generating chapters: {e}"
+
 @app.route("/video_info", methods=["GET"])
 def get_video_info():
-    """ API endpoint to return video details, transcription, and summary """
+    """ API endpoint to return video details, transcription, summary, and chapters """
     video_url = request.args.get("url")
     if not video_url:
         return jsonify({"error": "No URL provided"}), 400
@@ -92,9 +111,11 @@ def get_video_info():
 
     transcription = get_video_transcription(video_id)
     summary = generate_summary(transcription)
+    chapters = generate_chapters(transcription)
 
     video_info["transcription"] = transcription
     video_info["summary"] = summary
+    video_info["chapters"] = chapters
 
     return jsonify(video_info)
 

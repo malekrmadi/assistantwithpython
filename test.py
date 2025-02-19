@@ -1,120 +1,122 @@
-from flask import Flask, request, jsonify
+import json
 from youtube_transcript_api import YouTubeTranscriptApi
-import googleapiclient.discovery
-import os
-import requests
-from dotenv import load_dotenv
 import google.generativeai as genai
+import os
+from dotenv import load_dotenv
 
-# Load environment variables
+# Charger les variables d'environnement
 load_dotenv()
-YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# Configure the Gemini API
-print("Configuring Gemini API...")
+# Configurer l'API Gemini
 genai.configure(api_key=GEMINI_API_KEY)
-print("Gemini API configured successfully!")
 
-app = Flask(__name__)
+# URL YouTube statique pour le test
+video_url = "https://www.youtube.com/watch?v=cfEfA1qNb-c"
+video_id = video_url.split("v=")[-1]
 
-def get_youtube_video_info(video_id):
-    """ Retrieve video details from YouTube API """
-    print(f"Fetching YouTube video info for video ID: {video_id}")
-    youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
-    
-    request = youtube.videos().list(
-        part="snippet,statistics,contentDetails",
-        id=video_id
-    )
-    response = request.execute()
-    
-    if not response["items"]:
-        print("No video found.")
-        return None
-    
-    video = response["items"][0]
-    info = {
-        "title": video["snippet"]["title"],
-        "description": video["snippet"]["description"],
-        "publishedAt": video["snippet"]["publishedAt"],
-        "viewCount": video["statistics"].get("viewCount", "N/A"),
-        "likeCount": video["statistics"].get("likeCount", "N/A"),
-        "duration": video["contentDetails"]["duration"],
-    }
-    print("Video info retrieved successfully!")
-    return info
-
+# 🔹 Étape 1 : Récupérer la transcription brute
 def get_video_transcription(video_id):
-    """ Retrieve video transcription if available """
-    print(f"Fetching transcription for video ID: {video_id}")
     try:
         transcript = YouTubeTranscriptApi.get_transcript(video_id)
-        text = " ".join([entry["text"] for entry in transcript])
-        print("Transcription retrieved successfully!")
-        return text
+        return transcript
     except Exception as e:
-        print(f"Error retrieving transcription: {e}")
-        return "Transcription not available."
+        print(f"❌ Erreur lors de la récupération de la transcription: {e}")
+        return None
 
-def generate_summary(transcription):
-    """ Generate a summary using Gemini AI """
-    if transcription == "Transcription not available.":
-        print("No transcription available, skipping summary generation.")
-        return "Summary not available."
-    
+# 🔹 Étape 2 : Demander à Gemini de segmenter la transcription par sujets
+def segment_transcription_by_topics(transcript):
+    """Envoie la transcription complète à Gemini pour qu'il découpe en chapitres logiques."""
+    full_text = "\n".join(entry["text"] for entry in transcript)
+
     prompt = f"""
-    Summarize this YouTube video transcription in a **concise and informative** way.
-    Focus on the key takeaways and **main points** without losing the meaning.
-
-    Transcription:
-    {transcription}
-
-    Summary:
-    """
+    Voici la transcription complète d'une vidéo YouTube. Segmente le texte en chapitres basés sur les sujets abordés.
     
+    Renvoie une liste de segments sous la forme JSON valide :
+    [
+      {{"title": "Nom du chapitre", "content": "Texte de ce chapitre", "script": "Texte complet du segment"}}
+    ]
+    
+    Transcription :
+    {full_text}
+    
+    Assure-toi que la réponse soit bien formatée en JSON.
+    """
+
     try:
-        print("Generating summary with Gemini AI...")
         model = genai.GenerativeModel("gemini-1.5-flash")
         response = model.generate_content(prompt)
-        
-        if response and hasattr(response, 'text'):
-            print("Summary generated successfully!")
-            return response.text if response.text else "Summary generation failed."
-        else:
-            print("Error: Gemini AI did not return a valid response.")
-            return "Error generating summary."
+
+        print("\n🔍 DEBUG: Réponse brute de Gemini :\n", response.text)  # ✅ DEBUGGING
+
+        # Nettoyage de la réponse avant parsing JSON
+        formatted_response = response.text.strip().replace("```json", "").replace("```", "").strip()
+
+        # S'assurer que la réponse est bien au format JSON
+        if not formatted_response.startswith("[") or not formatted_response.endswith("]"):
+            print("⚠️ Erreur : La réponse de Gemini n'est pas un JSON valide.")
+            return None
+
+        # Convertir en liste Python
+        chapters = json.loads(formatted_response)
+        return chapters
+    except json.JSONDecodeError as e:
+        print(f"⚠️ Erreur de parsing JSON : {e}")
+        return None
     except Exception as e:
-        print(f"Error generating summary: {e}")
-        return f"Error generating summary: {e}"
+        print(f"⚠️ Erreur de segmentation par sujets : {e}")
+        return None
 
-@app.route("/video_info", methods=["GET"])
-def get_video_info():
-    """ API endpoint to return video details, transcription, and summary """
-    video_url = request.args.get("url")
-    if not video_url:
-        return jsonify({"error": "No URL provided"}), 400
-    
-    video_id = video_url.split("v=")[-1]
-    
-    video_info = get_youtube_video_info(video_id)
-    if not video_info:
-        return jsonify({"error": "Video not found"}), 404
-    
-    transcription = get_video_transcription(video_id)
-    summary = generate_summary(transcription)
-    
-    video_info["transcription"] = transcription
-    video_info["summary"] = summary
-    
-    return jsonify(video_info)
+# 🔹 Étape 3 : Associer chaque chapitre à ses timestamps
+def assign_timestamps(transcript, chapters):
+    """Associe chaque chapitre avec ses timestamps en fonction de la transcription brute."""
+    timestamped_chapters = []
 
-if __name__ == "__main__":
-    print("Starting Flask server...")
-    app.run(debug=True)
+    for chapter in chapters:
+        chapter_text = chapter["script"]  # Utilisation du script complet pour ajuster les timestamps
+        start_time = None
+        end_time = None
 
-# Testing Gemini AI with a sample text
-sample_text = "This is a test text to check Gemini AI functionality. The AI should return a short summary of this text."
-print("Testing Gemini AI summary function...")
-test_summary = generate_summary(sample_text)
-print(f"Generated Summary: {test_summary}")
+        # Trouver le premier et dernier mot du chapitre dans la transcription
+        for entry in transcript:
+            if chapter_text.startswith(entry["text"]) and start_time is None:
+                start_time = entry["start"]
+            if chapter_text.endswith(entry["text"]):
+                end_time = entry["start"] + entry["duration"]
+
+        if start_time is not None and end_time is not None:
+            timestamped_chapters.append({
+                "title": chapter["title"],
+                "start": start_time,
+                "end": end_time
+            })
+        else:
+            print(f"⚠️ Impossible de trouver les timestamps pour le chapitre : {chapter['title']}")
+
+    return timestamped_chapters
+
+# 🔹 Étape 4 : Convertir les timestamps en format lisible (mm:ss)
+def format_timestamp(seconds):
+    minutes, sec = divmod(int(seconds), 60)
+    return f"{minutes:02}:{sec:02}"
+
+# 🔹 Étape 5 : Exécuter tout le processus
+transcription = get_video_transcription(video_id)
+
+if transcription:
+    print("\n✅ Transcription récupérée avec succès !")
+    print(f"📜 Nombre total de phrases : {len(transcription)}\n")
+
+    # Segmentation par sujets
+    segmented_chapters = segment_transcription_by_topics(transcription)
+    
+    if segmented_chapters:
+        timestamped_chapters = assign_timestamps(transcription, segmented_chapters)
+
+        print("\n📚 Chapitres générés avec timestamps :")
+        for chapter in timestamped_chapters:
+            print(f" - {format_timestamp(chapter['start'])} → {format_timestamp(chapter['end'])} : {chapter['title']}")
+    else:
+        print("❌ Erreur lors de la segmentation des chapitres.")
+else:
+    print("❌ Impossible de récupérer la transcription.")

@@ -33,6 +33,14 @@ if st.button("📥 Get Video Info"):
             with st.expander("📜 Full Transcription"):
                 st.write(video_info["transcription"])
 
+            # Display chapters in a collapsible section
+            with st.expander("📖 Video Chapters"):
+                if isinstance(video_info["chapters"], list):
+                    for chapter in video_info["chapters"]:
+                        st.write(f"⏲️ **{chapter['start']} - {chapter['end']}**: {chapter['title']}")
+                else:
+                    st.write(video_info["chapters"])
+        
         else:
             st.error("❌ Error: Unable to retrieve video info. Check the URL.")
     else:
