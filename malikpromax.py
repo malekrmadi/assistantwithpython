@@ -12,7 +12,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
 
 # URL YouTube statique pour le test
-video_url = "https://www.youtube.com/watch?v=cfEfA1qNb-c"
+video_url = "https://www.youtube.com/watch?v=5u9u8yzPEpA"
 video_id = video_url.split("v=")[-1]
 
 # Étape 1 : Récupérer la transcription brute
