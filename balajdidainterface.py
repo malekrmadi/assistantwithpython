@@ -3,10 +3,10 @@ import requests
 import isodate
 from datetime import datetime
 
-st.set_page_config(layout="wide")  # Mode plein écran pour optimiser la mise en page
+st.set_page_config(layout="wide")
 st.title("🎬 YouTube Video Info & AI Summary")
 
-# ➤ Zone d'entrée URL + bouton dans la même ligne (Row 1)
+# ➤ Zone d'entrée URL + bouton dans la même ligne
 col1, col2 = st.columns([4, 1])
 with col1:
     video_url = st.text_input("🔗 Entrez l'URL de la vidéo YouTube:")
@@ -50,51 +50,50 @@ if submit_button and video_url:
         if response.status_code == 200:
             video_info = response.json()
 
-            # ➤ Informations Générales (Row 2 - Pleine largeur)
+            # ➤ Informations Générales et Résumé
             st.markdown("---")
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                st.markdown(f"**📌 {video_info['title']}**")
+                st.write(f"📅 **Date de publication :** {format_date(video_info['publishedAt'])}")
+                st.write(f"👀 **Vues :** {int(video_info['viewCount']):,}")
+                st.write(f"👍 **Likes :** {int(video_info['likeCount']):,}")
+                st.write(f"⏳ **Durée :** {format_duration(video_info['duration'])}")
+
+            with col2:
+                st.subheader("📑 Résumé IA")
+                st.write(video_info.get("summary", "Résumé non disponible."))
+            st.markdown("---")
+
+            # ➤ Vidéo (Row unique)
+            st.subheader("🎥 Vidéo")
             st.markdown(
                 f"""
-                <h2>📌 {video_info['title']}</h2>
-                <p style="font-size:18px">
-                    📅 <b>Date de publication :</b> {format_date(video_info['publishedAt'])}<br>
-                    👀 <b>Vues :</b> {int(video_info['viewCount']):,} <br>
-                    👍 <b>Likes :</b> {int(video_info['likeCount']):,} <br>
-                    ⏳ <b>Durée :</b> {format_duration(video_info['duration'])}
-                </p>
+                <iframe width="100%" height="400" src="https://www.youtube.com/embed/{video_id}" 
+                frameborder="0" allowfullscreen></iframe>
                 """,
                 unsafe_allow_html=True
             )
             st.markdown("---")
 
-            # ➤ Résumé IA (Row 3 - Pleine largeur)
-            st.subheader("📑 Résumé IA")
-            st.write(video_info.get("summary", "Résumé non disponible."))
-            st.markdown("---")
-
-            # ➤ Deux colonnes : Chapitres (gauche) & Vidéo (droite) (Row 4)
-            col_left, col_right = st.columns([1, 1])
-
-            with col_left:
-                st.subheader("📖 Chapitres")
-                chapters = video_info.get("chapters", [])
-                if isinstance(chapters, list) and chapters:
-                    with st.container():
-                        for chapter in chapters:
-                            st.markdown(f"### ⏲️ {chapter['start_time']} - {chapter['end_time']}")
-                            st.markdown(f"**📌 {chapter['title']}**")
-                            st.write(f"📄 {chapter['content']}")  # Résumé du chapitre
-                        st.markdown("---")
-                else:
-                    st.write("Aucun chapitre disponible.")
-
-            with col_right:
-                st.subheader("🎥 Vidéo")
-                st.markdown(
-                    f"""
-                    <iframe width="100%" height="400" src="https://www.youtube.com/embed/{video_id}" 
-                    frameborder="0" allowfullscreen></iframe>
-                    """,
-                    unsafe_allow_html=True
-                )
+            # ➤ Chapitres (Stylisés)
+            st.subheader("📖 Chapitres")
+            chapters = video_info.get("chapters", [])
+            if chapters:
+                for chapter in chapters:
+                    st.markdown(
+                        f"""
+                        <div style="background-color:#f0f2f6; padding:10px; border-radius:8px; margin-bottom:8px;">
+                            <h4 style="color:#1f77b4;">⏳ {chapter['title']}</h4>
+                            <p style="margin:5px 0; font-size:14px; color:#666;">
+                                🕒 {chapter['start_time']} - {chapter['end_time']}
+                            </p>
+                            <p style="font-size:15px; color:#333;">{chapter['content']}</p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+            else:
+                st.write("Aucun chapitre disponible.")
         else:
             st.error("❌ Erreur lors de la récupération des informations.")
