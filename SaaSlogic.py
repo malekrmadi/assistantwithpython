@@ -41,12 +41,14 @@ def get_youtube_video_info(video_id):
     return info
 
 def get_video_transcription(video_id):
-    """ Récupère la transcription de la vidéo """
+    """Récupère la transcription en français ou en anglais si indisponible"""
     try:
-        transcript = YouTubeTranscriptApi.get_transcript(video_id)
+        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['fr', 'en'])
         return transcript
-    except Exception:
+    except Exception as e:
+        print(f"Erreur : {e}")
         return None
+
 
 def format_timestamp(seconds):
     """ Convertit un timestamp en hh:mm:ss """
@@ -62,7 +64,7 @@ def hhmmss_to_seconds(timestamp):
 def get_transcript_with_timestamps(video_id):
     """ Récupère la transcription avec timestamps """
     try:
-        transcript = YouTubeTranscriptApi.get_transcript(video_id)
+        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['fr', 'en'])
         return [
             {
                 "sentence": entry["text"],
@@ -81,7 +83,7 @@ def generate_summary(transcription):
 
     full_text = " ".join([entry["text"] for entry in transcription])
     prompt = f"""
-    Résume cette transcription de manière claire et concise :
+    Résume cette transcription de manière claire et concise et assure toi que tu me rende le resuméé en français :
     
     {full_text}
 
@@ -174,6 +176,9 @@ def get_video_info():
     video_info["summary"] = summary
     video_info["transcription"] = transcription or "Transcription non disponible."
     video_info["chapters"] = timestamped_chapters or "Chapitres non disponibles."
+
+            # Ajout du print pour voir le JSON des chapitres
+    print(json.dumps(video_info["chapters"], indent=4, ensure_ascii=False))
 
     return jsonify(video_info)
 
