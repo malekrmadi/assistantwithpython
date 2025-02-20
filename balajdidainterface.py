@@ -69,8 +69,8 @@ if submit_button and video_url:
             st.subheader("🎥 Vidéo")
             st.markdown(
                 f"""
-                <iframe width="100%" height="400" src="https://www.youtube.com/embed/{video_id}" 
-                frameborder="0" allowfullscreen></iframe>
+                <iframe width="100%" height="400" src="https://www.youtube.com/embed/{video_id}?autoplay=1" 
+                frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
                 """,
                 unsafe_allow_html=True
             )
