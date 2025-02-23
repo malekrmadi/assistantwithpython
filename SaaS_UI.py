@@ -85,7 +85,7 @@ if submit_button and video_url:
                         f"""
                         <div style="background-color:#f0f2f6; padding:10px; border-radius:8px; margin-bottom:8px;">
                             <h4 style="color:#1f77b4;">⏳ {chapter['title']}</h4>
-                            <p style="margin:5px 0; font-size:14px; color:#666;">
+                            <p style="margin:5px 0; font-size:28px; color:#666;">
                                 🕒 {chapter['start_time']} - {chapter['end_time']}
                             </p>
                             <p style="font-size:15px; color:#333;">{chapter['content']}</p>
